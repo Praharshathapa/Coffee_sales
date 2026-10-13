@@ -48,10 +48,10 @@ The first launch reads the Excel file and writes a cached `.rds` copy, so later 
 
 ### Deployment
 
-The `Dashboard` folder contains everything the app needs, including the data, so it can be deployed to shinyapps.io directly:
+The app is deployed on [Posit Connect Cloud](https://connect.posit.cloud) straight from this repository, using `Dashboard/manifest.json`. If you add or update packages, regenerate the manifest before pushing:
 
 ```r
-rsconnect::deployApp("Dashboard", appName = "coffee-sales-dashboard")
+rsconnect::writeManifest("Dashboard")
 ```
 
 ## Project structure
@@ -61,6 +61,7 @@ Dashboard/
   global.R      data loading, cleaning and shared helpers
   ui.R          layout and styling
   server.R      reactive logic and charts
+  manifest.json package list for deployment
   www/          static assets
 analysis/
   coffee_sales_analysis.R
