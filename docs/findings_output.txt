@@ -1,0 +1,231 @@
+
+================================================================================
+Data quality
+================================================================================
+   check                                                   affected_rows
+1  Rows in source file                                     149116       
+2  Missing values in required columns                           0       
+3  Unparseable date/time                                        0       
+4  Quantity missing, non-positive or fractional                 0       
+5  Unit price missing or non-positive                           0       
+6  Duplicate transaction_id                                     0       
+7  Rows identical to an earlier row except transaction_id     398       
+8  Leading/trailing whitespace in text fields                   0       
+9  Store IDs mapping to more than one store name                0       
+10 Product IDs mapping to more than one name/type/category      0       
+11 Lines priced differently from the product's usual price   1262       
+12 Lines with quantity >= 4                                    36       
+13 Rows in analysis set                                    149116       
+   treatment                                                                             
+1  Raw workbook kept unchanged                                                           
+2  Excluded and counted                                                                  
+3  Excluded and counted                                                                  
+4  Excluded and counted                                                                  
+5  Excluded and counted                                                                  
+6  Reported; IDs are not used as order keys                                              
+7  Kept and flagged: may be repeat scans of one item in a basket, or double entry        
+8  Trimmed                                                                               
+9  None expected                                                                         
+10 None expected                                                                         
+11 Kept and flagged: price changes, promotions or data artefacts                         
+12 Kept and flagged: plausible bulk purchases, but several recur at identical clock times
+13 Used for every chart and KPI                                                          
+
+================================================================================
+Headline KPIs (full period, all stores)
+================================================================================
+   revenue  units line_items baskets avg_basket_value avg_units_per_basket avg_selling_price trading_days store_days
+1 698812.3 214470     149116  116790         5.983495             1.836373          3.258322          181        543
+  revenue_per_store_day
+1              1286.947
+
+================================================================================
+Findings as shown on the Executive Overview
+================================================================================
+
+Q: Is daily revenue growing? 
+Result: Daily revenue grew by about 17.9% per month (95% CI 16.0% to 19.9%); mean daily revenue went from $2,635 in Jan to $5,550 in Jun. 
+Method: Log-linear regression of daily revenue on day plus weekday, Newey-West standard errors (181 days). 
+Caveat: Six months cannot separate growth from seasonality (winter to summer), and the source is a sample dataset. 
+
+Q: How concentrated is demand in the morning? 
+Result: 45.8% of revenue falls between 07:00 and 10:59 (95% CI 43.6% to 48.0%): 4 of the 15 trading hours. By store: Astoria 38.5%, Hell's Kitchen 48.2%, Lower Manhattan 50.7%. 
+Method: Revenue share by hour; bootstrap interval resampling whole days (181 days, 2,000 resamples). 
+Caveat: Opening hours differ by store (Astoria opens later), so store shares partly reflect when each store is open. Sales show realised demand, not queue length or lost sales; a staffing change should be trialled and measured (e.g. wait times, sales per labour hour). 
+
+Q: Do weekends sell more than weekdays? 
+Result: Weekend days averaged -0.1% revenue relative to weekdays of the same week (95% CI -5.0% to +5.0%, p = 0.958): no detectable difference. 
+Method: Regression of log daily revenue on week fixed effects, a linear trend and a weekend indicator (25 weeks), so growth does not masquerade as a weekend effect. 
+Caveat: Assumes the weekend effect is the same every week; with ~50 weekend days, differences smaller than a few percent cannot be ruled out. 
+
+Q: Do the stores perform differently? 
+Result: Daily revenue differences between stores are within 2.8% of each other (smallest Holm-adjusted p = 0.256). Average basket value is highest at Lower Manhattan ($6.45) and lowest at Astoria ($5.71), but store explains only 0.35% of basket-value variance. 
+Method: Paired t-tests on daily revenue (paired by date, Holm correction); Welch ANOVA and eta squared for basket value. 
+Caveat: No data on foot traffic, opening hours, floor space or costs, so this compares sales, not efficiency or profit. 
+
+Q: Which products are bought together? 
+Result: Ouro Brasileiro shot → Ginger Scone: 31.3% of baskets with Ouro Brasileiro shot also contain Ginger Scone, versus 2.0% of all baskets (lift 15.8, 688 baskets). 24.8% of baskets contain 2+ products. 
+Method: Apriori over 116,790 store+second baskets (support >= 0.2%, confidence >= 10%), Fisher exact test with Holm adjustment. 
+Caveat: Sold together at 2 of 3 selected stores; within-store lift 15.4 (Hell's Kitchen), 13.0 (Lower Manhattan), so the pattern is not just where products are stocked. Baskets are inferred, not true orders. Association is not causation; test a bundle before rolling it out. 
+
+================================================================================
+1. Growth: mean daily revenue by month
+================================================================================
+  month     total days mean_per_day
+1   Jan  81677.74   31     2634.766
+2   Feb  76145.19   28     2719.471
+3   Mar  98834.68   31     3188.215
+4   Apr 118941.08   30     3964.703
+5   May 156727.76   31     5055.734
+6   Jun 166485.88   30     5549.529
+List of 4
+ $ monthly_growth: num 0.179
+ $ ci            : num [1:2] 0.16 0.199
+ $ n_days        : int 181
+ $ residual_acf1 : num 0.56
+
+================================================================================
+2. Morning peak: share of revenue 07:00-10:59, overall and by store
+================================================================================
+List of 5
+ $ share       : num 0.458
+ $ ci          : num [1:2] 0.436 0.48
+ $ hours       : int [1:4] 7 8 9 10
+ $ hours_in_day: int 15
+ $ n_days      : int 181
+Astoria          share 38.5% (95% CI 34.9%-42.1%)
+Hell's Kitchen   share 48.2% (95% CI 46.0%-50.3%)
+Lower Manhattan  share 50.7% (95% CI 49.0%-52.4%)
+
+Busiest weekday-hour cells (mean revenue per day):
+  day_of_week hour    total days mean_per_day
+1     Tuesday    9 13588.47   26     522.6335
+2     Tuesday   10 13497.68   26     519.1415
+3    Saturday   10 12736.48   25     509.4592
+4      Friday   10 13155.66   26     505.9869
+5     Tuesday    8 12950.19   26     498.0842
+
+Mean revenue per day by hour (all stores):
+   hour    total days mean_per_day
+1     6 21900.27  181    120.99597
+2     7 63526.47  181    350.97497
+3     8 82699.87  181    456.90536
+4     9 85169.53  181    470.54989
+5    10 88673.39  181    489.90823
+6    11 46319.14  181    255.90685
+7    12 40192.79  181    222.05961
+8    13 40367.45  181    223.02459
+9    14 41304.74  181    228.20298
+10   15 41733.10  181    230.56961
+11   16 41122.75  181    227.19751
+12   17 40134.31  181    221.73652
+13   18 34286.20  181    189.42652
+14   19 28446.68  181    157.16398
+15   20  2935.64  181     16.21901
+
+================================================================================
+3. Weekday vs weekend
+================================================================================
+  day_of_week     total days mean_per_day
+1      Monday 101677.28   26     3910.665
+2     Tuesday  99455.94   26     3825.228
+3   Wednesday 100313.54   26     3858.213
+4    Thursday 100767.78   26     3875.684
+5      Friday 101373.00   26     3898.962
+6    Saturday  96894.48   25     3875.779
+7      Sunday  98330.31   26     3781.935
+List of 5
+ $ pct_diff: num -0.00133
+ $ ci      : num [1:2] -0.0502 0.05
+ $ p_value : num 0.958
+ $ n_weeks : int 25
+ $ n_days  : int 175
+
+================================================================================
+4. Stores
+================================================================================
+   store_location  revenue units line_items baskets store_days revenue_per_store_day units_per_store_day     share
+1         Astoria 232243.9 70991      50599   40684        181              1283.116            392.2155 0.3323409
+2  Hell's Kitchen 236511.2 71737      50735   40454        181              1306.692            396.3370 0.3384473
+3 Lower Manhattan 230057.2 71742      47782   35652        181              1271.035            396.3646 0.3292118
+         store_a         store_b mean_diff     ci_low  ci_high     pct_of_b   cohens_dz    p_value n_days    p_holm
+1        Astoria  Hell's Kitchen -23.57602 -70.017244 22.86520 -0.018042531 -0.07445699 0.31782529    181 0.6356506
+2        Astoria Lower Manhattan  12.08099 -31.019431 55.18142  0.009504852  0.04111116 0.58088526    181 0.6356506
+3 Hell's Kitchen Lower Manhattan  35.65702  -5.022898 76.33693  0.028053539  0.12855932 0.08541804    181 0.2562541
+   store_location baskets mean_value       sd median_value half_width   ci_low  ci_high
+1         Astoria   40684   5.708483 3.990341            5 0.03877566 5.669707 5.747258
+2  Hell's Kitchen   40454   5.846422 6.976383            5 0.06798462 5.778438 5.914407
+3 Lower Manhattan   35652   6.452857 4.593209            6 0.04768009 6.405177 6.500537
+Welch ANOVA p < 0.001  eta^2 = 0.00346 
+                 
+                  Small Regular Large
+  Astoria          5042   16443 16136
+  Hell's Kitchen   4605   15294 15060
+  Lower Manhattan  4277   14052 13689
+Size mix chi-square p = 0.853  Cramer's V = 0.0025 
+
+Category share of store revenue:
+    product_category Astoria Hell's Kitchen Lower Manhattan
+1             Bakery   0.115          0.116           0.123
+2            Branded   0.023          0.008           0.027
+3             Coffee   0.386          0.386           0.387
+4       Coffee beans   0.044          0.079           0.049
+5 Drinking Chocolate   0.113          0.100           0.098
+6           Flavours   0.008          0.012           0.016
+7          Loose Tea   0.014          0.019           0.015
+8 Packaged Chocolate   0.005          0.007           0.007
+9                Tea   0.292          0.274           0.278
+
+================================================================================
+5. Basket analysis: all baskets vs multi-item baskets
+================================================================================
+
+min_items = 1: 116,790 baskets, 29,013 with 2+ products, 116,790 eligible, 414 repeat lines de-duplicated
+Rules generated: 40, retained: 40
+                        LHS                      RHS     support confidence rhs_support      lift count    p_adjusted
+1              Ginger Scone     Ouro Brasileiro shot 0.005890915  0.2978355  0.01882867 15.818194   688  0.000000e+00
+2      Ouro Brasileiro shot             Ginger Scone 0.005890915  0.3128695  0.01977909 15.818194   688  0.000000e+00
+3            Hazelnut syrup                 Latte Rg 0.003176642  0.2439185  0.02471958  9.867419   371 1.787172e-251
+4                  Latte Rg           Hazelnut syrup 0.003176642  0.1285071  0.01302338  9.867419   371 1.787172e-251
+5  Sugar Free Vanilla syrup               Cappuccino 0.003390701  0.2187845  0.02371778  9.224493   396 1.383366e-256
+6                Cappuccino Sugar Free Vanilla syrup 0.003390701  0.1429603  0.01549790  9.224493   396 1.383366e-256
+7           Chocolate syrup            Cappuccino Lg 0.003236578  0.2181189  0.02366641  9.216390   378 2.281518e-244
+8             Cappuccino Lg          Chocolate syrup 0.003236578  0.1367583  0.01483860  9.216390   378 2.281518e-244
+9           Chocolate syrup                 Latte Rg 0.003330765  0.2244662  0.02471958  9.080503   389 1.753643e-249
+10                 Latte Rg          Chocolate syrup 0.003330765  0.1347419  0.01483860  9.080503   389 1.753643e-249
+
+min_items = 2: 116,790 baskets, 29,013 with 2+ products, 29,013 eligible, 414 repeat lines de-duplicated
+Rules generated: 81, retained: 81
+                        LHS                      RHS    support confidence rhs_support     lift count    p_adjusted
+1      Ouro Brasileiro shot             Ginger Scone 0.02371351  0.7181628  0.07768931 9.244037   688  0.000000e+00
+2              Ginger Scone     Ouro Brasileiro shot 0.02371351  0.3052351  0.03301968 9.244037   688  0.000000e+00
+3            Hazelnut syrup                 Latte Rg 0.01278737  0.2439185  0.05721573 4.263137   371 2.791232e-136
+4                  Latte Rg           Hazelnut syrup 0.01278737  0.2234940  0.05242478 4.263137   371 2.791232e-136
+5            Hazelnut syrup                    Latte 0.01178782  0.2248521  0.05683659 3.956115   342 2.427218e-114
+6                     Latte           Hazelnut syrup 0.01178782  0.2073984  0.05242478 3.956115   342 2.427218e-114
+7                  Latte Rg          Chocolate syrup 0.01340778  0.2343373  0.05962844 3.929959   389 9.360487e-131
+8           Chocolate syrup                 Latte Rg 0.01340778  0.2248555  0.05721573 3.929959   389 9.360487e-131
+9                Cappuccino Sugar Free Vanilla syrup 0.01364905  0.2445954  0.06238583 3.920689   396 4.928606e-133
+10 Sugar Free Vanilla syrup               Cappuccino 0.01364905  0.2187845  0.05580257 3.920689   396 4.928606e-133
+
+================================================================================
+5b. Top rule within each store that sells both products
+================================================================================
+Astoria          does not sell both products
+Hell's Kitchen   Ouro -> Ginger: support 1.05%, confidence 31.6%, lift 15.44 (40,454 baskets)
+Lower Manhattan  Ouro -> Ginger: support 0.74%, confidence 30.7%, lift 13.00 (35,652 baskets)
+
+Stores selling each product:
+                      
+                       Astoria Hell's Kitchen Lower Manhattan
+  Ginger Scone             640            833             851
+  Ouro Brasileiro shot       0           1363             859
+
+================================================================================
+Session info
+================================================================================
+R version 4.6.1 (2026-06-24 ucrt) 
+dplyr 1.2.1 
+arules 1.7.15 
+shiny 1.14.0 
+readxl 1.5.0.1 
