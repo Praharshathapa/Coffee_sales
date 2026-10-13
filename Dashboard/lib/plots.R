@@ -17,13 +17,13 @@ fmt_int <- function(x) ifelse(is.na(x), "n/a", scales::comma(x, accuracy = 1))
 fmt_signed_pct <- function(x, accuracy = 0.1) {
   ifelse(is.na(x), "n/a", paste0(ifelse(x >= 0, "+", ""), scales::percent(x, accuracy = accuracy)))
 }
-fmt_p <- function(p) ifelse(is.na(p), "n/a", ifelse(p < 0.001, "< 0.001", formatC(p, format = "f", digits = 3)))
+fmt_p <- function(p) ifelse(is.na(p), "p = n/a", ifelse(p < 0.001, "p < 0.001", paste("p =", formatC(p, format = "f", digits = 3))))
 fmt_hour <- function(h) sprintf("%02d:00", h)
 
 #' Label and axis format for a metric key used across the app.
 metric_info <- function(metric) {
   switch(metric,
-    revenue = list(label = "Revenue", tick = "$,.0f", hover = "$,.0f"),
+    revenue = list(label = "Revenue", tick = "$~s", hover = "$,.0f"),
     units = list(label = "Units sold", tick = ",.0f", hover = ",.0f"),
     baskets = list(label = "Baskets (proxy orders)", tick = ",.0f", hover = ",.0f"),
     stop("Unknown metric: ", metric, call. = FALSE)
@@ -65,3 +65,10 @@ style_plotly <- function(p, show_legend = TRUE) {
 to_plotly <- function(plot, show_legend = TRUE, ...) {
   plotly::ggplotly(plot, ...) %>% style_plotly(show_legend)
 }
+
+# Category-mix chart: five largest categories by overall revenue plus "Other".
+# Hues are the first five slots of a CVD-validated categorical palette;
+# segments carry direct % labels because three slots are below 3:1 contrast.
+mix_categories <- c("Coffee", "Tea", "Bakery", "Drinking Chocolate", "Coffee beans")
+mix_colors <- c(Coffee = "#2a78d6", Tea = "#eb6834", Bakery = "#1baf7a", `Drinking Chocolate` = "#eda100",
+                `Coffee beans` = "#e87ba4", Other = "#5c5c5c")

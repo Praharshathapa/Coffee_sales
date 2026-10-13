@@ -1,0 +1,6 @@
+# Keep LF everywhere so file checksums in Dashboard/manifest.json are stable
+# across Windows and Linux checkouts
+* text=auto eol=lf
+*.xlsx binary
+*.png binary
+*.rds binary

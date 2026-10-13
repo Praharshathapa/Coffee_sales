@@ -44,7 +44,7 @@ server <- function(input, output, session) {
 
   change_line <- function(metric) {
     cmp <- comparison()
-    if (!cmp$available) return(tags$span(class = "kpi-sub", "No equal-length earlier period in the data"))
+    if (!cmp$available) return(tags$span(class = "kpi-sub", HTML("&nbsp;")))
     tags$span(class = "kpi-sub", paste0(fmt_signed_pct(cmp$change[[metric]]), " vs ",
                                          format(cmp$prior_from, "%d %b"), "–", format(cmp$prior_to, "%d %b")))
   }
@@ -86,7 +86,7 @@ server <- function(input, output, session) {
             marker = list(color = unname(store_colors[by_store$store_location])),
             text = ~paste0(fmt_money(revenue), " (", fmt_pct(share), ")"), textposition = "auto",
             hovertemplate = "%{y}<br>%{x:$,.0f}<extra></extra>") %>%
-      layout(xaxis = list(title = "Revenue", tickformat = "$,.0s"), yaxis = list(title = "")) %>%
+      layout(xaxis = list(title = "Revenue", tickformat = "$~s"), yaxis = list(title = "")) %>%
       style_plotly(show_legend = FALSE)
   })
 
@@ -156,7 +156,7 @@ server <- function(input, output, session) {
     w <- weekend_effect(daily_series(sales()))
     if (!is_estimable(w)) return(attr(w, "reason"))
     paste0("Within-week comparison, adjusted for trend: weekends ", fmt_signed_pct(w$pct_diff),
-           " vs weekdays, 95% CI ", fmt_signed_pct(w$ci[1]), " to ", fmt_signed_pct(w$ci[2]), ", p = ", fmt_p(w$p_value), ".")
+           " vs weekdays, 95% CI ", fmt_signed_pct(w$ci[1]), " to ", fmt_signed_pct(w$ci[2]), ", ", fmt_p(w$p_value), ".")
   })
 
   output$hourlyPlot <- renderPlotly({
@@ -169,15 +169,19 @@ server <- function(input, output, session) {
   })
 
   # *************************Page 3: Products & Stores*************************
-  ranking_plot <- function(summary, label_col, metric) {
+  # Shares are computed on all rows before keeping the top_n, so they stay
+  # shares of the full category total
+  ranking_plot <- function(summary, label_col, metric, top_n = Inf) {
     info <- metric_info(metric)
     summary <- add_share(summary, metric)
+    summary <- utils::head(summary[order(-summary[[metric]]), ], top_n)
     summary$label <- factor(summary[[label_col]], levels = summary[[label_col]][order(summary[[metric]])])
     plot_ly(summary, x = summary[[metric]], y = ~label, type = "bar", orientation = "h", marker = list(color = accent),
             text = ~fmt_pct(share, 1), textposition = "outside", cliponaxis = FALSE,
             hovertemplate = paste0("%{y}<br>%{x:", info$hover, "}<br>%{text} of total<extra></extra>")) %>%
       layout(xaxis = list(title = info$label, tickformat = info$tick), yaxis = list(title = "")) %>%
-      style_plotly(show_legend = FALSE)
+      style_plotly(show_legend = FALSE) %>%
+      layout(margin = list(r = 45))
   }
 
   output$categoryPlot <- renderPlotly({
@@ -188,8 +192,10 @@ server <- function(input, output, session) {
   output$productPlot <- renderPlotly({
     products <- summarise_sales(filter(sales(), product_category == input$product_category), product_detail)
     validate(need(nrow(products) > 0, "No sales for this category in the current selection."))
-    ranking_plot(products, "product_detail", input$product_metric) %>%
-      layout(title = list(text = paste("Products in", input$product_category, "(share of category)"),
+    title <- if (nrow(products) > 15) paste("Top 15 of", nrow(products), "products in", input$product_category) else
+      paste("Products in", input$product_category)
+    ranking_plot(products, "product_detail", input$product_metric, top_n = 15) %>%
+      layout(title = list(text = paste(title, "(share of category)"),
                           font = list(size = 14), x = 0), margin = list(t = 35))
   })
 
@@ -222,23 +228,29 @@ server <- function(input, output, session) {
     if (!is_estimable(cmp)) return(tags$p(class = "stat-note", attr(cmp, "reason")))
     rows <- lapply(seq_len(nrow(cmp)), function(i) {
       r <- cmp[i, ]
-      tags$li(sprintf("%s vs %s: %s per day (%s; 95%% CI %s to %s), Holm-adjusted p = %s, d_z = %.2f",
+      tags$li(sprintf("%s vs %s: %s per day (%s; 95%% CI %s to %s), Holm-adjusted %s, d_z = %.2f",
                       r$store_a, r$store_b, fmt_money(r$mean_diff), fmt_signed_pct(r$pct_of_b),
                       fmt_money(r$ci_low), fmt_money(r$ci_high), fmt_p(r$p_holm), r$cohens_dz))
     })
     bs <- basket_stats()
     tags$div(class = "stat-note",
              tags$b("Daily revenue, paired by date:"), tags$ul(rows),
-             tags$p(tags$b("Basket value: "), "Welch ANOVA p = ", fmt_p(bs$p_value), "; store explains ",
+             tags$p(tags$b("Basket value: "), "Welch ANOVA ", fmt_p(bs$p_value), "; store explains ",
                     fmt_pct(bs$eta_sq, 0.01), " of basket-value variance (eta squared). ",
                     "With tens of thousands of baskets, small differences reach significance; the effect size shows how much they matter."))
   })
 
   output$storeMixPlot <- renderPlotly({
-    mix <- summarise_sales(sales(), store_location, product_category) %>%
-      group_by(store_location) %>% mutate(share = revenue / sum(revenue)) %>% ungroup()
-    plot_ly(mix, x = ~share, y = ~store_location, color = ~product_category, type = "bar", orientation = "h",
-            colors = RColorBrewer::brewer.pal(9, "Set3")[seq_along(unique(mix$product_category))],
+    # Five largest categories keep their own colour; the rest fold into "Other"
+    # so the chart never needs more than six hues
+    mix <- sales() %>%
+      mutate(category = ifelse(product_category %in% mix_categories, product_category, "Other")) %>%
+      summarise_sales(store_location, category) %>%
+      group_by(store_location) %>% mutate(share = revenue / sum(revenue)) %>% ungroup() %>%
+      mutate(category = factor(category, levels = names(mix_colors)))
+    plot_ly(mix, x = ~share, y = ~store_location, color = ~category, colors = mix_colors, type = "bar",
+            orientation = "h", text = ~ifelse(share >= 0.05 & category != "Other", fmt_pct(share, 1), ""), textposition = "inside",
+            insidetextanchor = "middle", textfont = list(color = "#1a1a1a"),
             hovertemplate = "%{fullData.name}<br>%{y}: %{x:.1%} of store revenue<extra></extra>") %>%
       layout(barmode = "stack", xaxis = list(title = "", tickformat = ".0%"), yaxis = list(title = "")) %>%
       style_plotly()
@@ -258,7 +270,7 @@ server <- function(input, output, session) {
   output$size_test_note <- renderUI({
     a <- size_mix_association(sales())
     if (!is_estimable(a)) return(attr(a, "reason"))
-    paste0("Does size mix differ by store? Chi-square test on ", fmt_int(a$n), " sized line items: p = ", fmt_p(a$p_value),
+    paste0("Does size mix differ by store? Chi-square test on ", fmt_int(a$n), " sized line items: ", fmt_p(a$p_value),
            ", Cramér's V = ", sprintf("%.3f", a$cramers_v), " (0 = identical mix). Only beverage lines carry a size.")
   })
 
@@ -273,7 +285,7 @@ server <- function(input, output, session) {
       scale_y_continuous(labels = if (input$price_measure == "transaction_qty") comma else dollar) +
       labs(x = NULL, y = label) +
       theme_dashboard()
-    to_plotly(plot, show_legend = FALSE)
+    to_plotly(plot, show_legend = FALSE) %>% layout(margin = list(t = 40))
   })
 
   # *************************Page 4: Baskets & Data*************************
@@ -309,7 +321,7 @@ server <- function(input, output, session) {
             text = ~paste0(LHS, " → ", RHS, "<br>Support: ", fmt_pct(support, 0.01), "<br>Confidence: ", fmt_pct(confidence),
                            "<br>Lift: ", sprintf("%.2f", lift), "<br>Baskets: ", fmt_int(count)),
             hoverinfo = "text") %>%
-      layout(xaxis = list(title = "Support (share of eligible baskets)", tickformat = ".1%"),
+      layout(xaxis = list(title = "Support (share of eligible baskets)", tickformat = ".2%"),
              yaxis = list(title = "Confidence", tickformat = ".0%")) %>%
       style_plotly(show_legend = FALSE)
   })
@@ -319,14 +331,14 @@ server <- function(input, output, session) {
     datatable(
       rules()$rules %>% transmute(`If basket contains` = LHS, `It also contains` = RHS, Baskets = count,
                                   Support = support, Confidence = confidence, `Consequent share` = rhs_support,
-                                  Lift = lift, `Adj. p (Fisher, Holm)` = p_adjusted),
+                                  Lift = lift,
+                                  `Adj. p (Fisher, Holm)` = ifelse(p_adjusted < 1e-15, "< 1e-15", formatC(p_adjusted, format = "g", digits = 2))),
       rownames = FALSE,
       options = list(pageLength = 10, order = list(list(6, "desc")))
     ) %>%
       formatPercentage(c("Support", "Consequent share"), digits = 2) %>%
       formatPercentage("Confidence", digits = 1) %>%
-      formatRound("Lift", digits = 2) %>%
-      formatSignif("Adj. p (Fisher, Holm)", digits = 2)
+      formatRound("Lift", digits = 2)
   })
 
   explorer_data <- reactive({
@@ -336,14 +348,14 @@ server <- function(input, output, session) {
                 Store = store_location, Category = product_category, Type = product_type,
                 Product = product_detail, Size = size, Quantity = transaction_qty,
                 `Unit Price` = unit_price, `Line Revenue` = line_revenue,
-                `Basket ID` = basket_id,
+                `Basket ID` = paste0("S", store_id, "-", format(transaction_datetime, "%Y%m%d-%H%M%S")),
                 `Flag: duplicate except ID` = flag_duplicate_except_id,
                 `Flag: qty 4+` = flag_high_qty,
                 `Flag: non-standard price` = flag_nonmodal_price)
   })
 
   output$data_table <- renderDT({
-    datatable(explorer_data(), filter = "top", rownames = FALSE,
+    datatable(explorer_data(), filter = "top", rownames = FALSE, class = "compact stripe nowrap",
               options = list(pageLength = 10, scrollX = TRUE)) %>%
       formatCurrency(c("Unit Price", "Line Revenue"))
   })
