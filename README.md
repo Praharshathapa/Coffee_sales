@@ -6,7 +6,7 @@ The app covers sales trends, busy periods, product and store performance, drink 
 
 ![Overview tab](docs/screenshots/overview.png)
 
-Live demo: _coming soon_
+**[Live demo](https://01a1346e-6b52-2994-3997-e90f07601777.share.connect.posit.cloud)** (hosted on Posit Connect Cloud; the first load can take a few seconds while the app starts)
 
 ## Features
 
