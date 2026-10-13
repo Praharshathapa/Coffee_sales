@@ -1,84 +1,74 @@
-# ☕ Coffee Shop Sales Dashboard
+# Coffee Shop Sales Dashboard
 
-An interactive **R Shiny** dashboard and analysis of **149,116 transactions ($698.8K revenue)** from three New York coffee shops, January–June 2023. It covers sales trends, staffing peaks, product and store performance, size and price behaviour, and **market-basket analysis** using the Apriori algorithm.
+An R Shiny dashboard for exploring six months of point-of-sale data from three coffee shops in New York (Astoria, Hell's Kitchen and Lower Manhattan). The dataset covers 149,116 transactions from January to June 2023.
 
-![Dashboard overview](docs/screenshots/overview.png)
+The app covers sales trends, busy periods, product and store performance, drink size and pricing, and products that are commonly bought together.
 
-> **Live demo:** _add your shinyapps.io link here after deploying (see [Deploy](#deploy))_
+![Overview tab](docs/screenshots/overview.png)
 
-**Tech:** R · Shiny · shinydashboard · plotly · ggplot2 · dplyr · arules · DT
+Live demo: _coming soon_
 
----
+## Features
 
-## Key insights
-
-| Insight | Evidence | Business action |
-|---|---|---|
-| **Revenue doubled in six months** | $81.7K in Jan → $166.5K in Jun (+104%) | Plan inventory and hiring for continued growth |
-| **The morning rush drives the business** | 7–10 AM brings in **45.8%** of revenue; busiest slot is Tuesday 9 AM | Staff up for 7–10 AM; run off-peak promotions in the afternoon |
-| **Coffee and tea make up two-thirds of sales** | Coffee 38.6%, Tea 28.1%, Bakery 11.8% | Protect the core beverage range; use bakery as an add-on |
-| **Strong pastry cross-sell** | 72% of baskets with an *Ouro Brasileiro shot* also include a *Ginger Scone* (lift 9.2) | Bundle them as a combo or suggest the pairing at the till |
-| **Syrups pair with lattes** | *Hazelnut syrup → Latte Rg* (lift 4.3) | Upsell flavoured syrups on milk drinks |
-| **Stores perform evenly but differ in taste** | Each store has 33% ± 0.5% of revenue; top sellers differ (Dark Chocolate, Ouro Brasileiro, Peppermint) | Tailor the menu and promotions to each store |
-
-## Dashboard features
-
-- **Global filters:** a store multi-select and date range in the sidebar update every tab at once
-- **Overview:** KPI tiles, daily revenue with a 7-day rolling average, store revenue share
-- **Sales trends:** hourly, weekly and monthly views, plus a weekday × hour **heatmap** for staffing
-- **Products and stores:** category breakdown (bar or treemap), product rankings, store summary table
-- **Size and price:** size mix by category, price distributions by size and store
-- **Basket analysis:** live Apriori rule mining with support/confidence sliders, a rule scatter plot and a searchable rules table
-- **Data explorer:** filterable transaction table with CSV export of the current selection
+- Store and date filters in the sidebar that apply to every tab
+- Hourly, weekly and monthly sales trends, plus a weekday-by-hour heatmap
+- Revenue and units by product category, individual product and store
+- Size mix and price distribution by size and store
+- Market basket analysis (Apriori) with adjustable support and confidence thresholds
+- A searchable transaction table with CSV export
 
 | Peak hours | Basket analysis |
 |---|---|
-| ![Peak hours heatmap](docs/screenshots/peak_hours.png) | ![Basket analysis](docs/screenshots/basket_analysis.png) |
-| **Hourly trends by store** | **Store performance** |
-| ![Hourly sales](docs/screenshots/hourly_sales.png) | ![Store performance](docs/screenshots/store_performance.png) |
+| ![Peak hours](docs/screenshots/peak_hours.png) | ![Basket analysis](docs/screenshots/basket_analysis.png) |
 
-## How it works
+## Findings
 
-- **Data preparation** ([global.R](Dashboard/global.R)): repairs Excel's time values, builds datetime features (hour, weekday, month) and derives drink size from the product name's `Lg`/`Rg`/`Sm` suffix. The cleaned data is cached as `.rds`, cutting startup from about 8 s to 0.2 s.
-- **Reactive design** ([server.R](Dashboard/server.R)): one filtered dataset feeds every output. Basket building depends only on the filters, so moving the sliders re-mines rules without rebuilding baskets.
-- **Basket definition:** every row has its own `transaction_id`, so items rung up at the same store at the same second are grouped into one basket. That gives 29K multi-item baskets for Apriori (`arules`), with redundant rules removed.
-- **Testing:** every output was rendered under all control and filter combinations with `shiny::testServer`, including empty filters and thresholds that return no rules.
+- Monthly revenue doubled over the period, from $81.7K in January to $166.5K in June.
+- Sales are concentrated in the morning: 7 to 10 AM accounts for 45.8% of revenue.
+- Coffee (38.6%) and tea (28.1%) make up most of the revenue. Bakery items come third at 11.8%.
+- The three stores bring in almost the same revenue (each about 33%), but their best-selling products differ.
+- The strongest product pairing is Ouro Brasileiro shot with Ginger Scone: 72% of baskets containing the shot also contained the scone.
 
-## Run locally
+## Getting started
+
+Requires R 4.1 or later.
 
 ```r
 install.packages(c("shiny", "shinydashboard", "plotly", "dplyr", "ggplot2",
                    "readxl", "scales", "RColorBrewer", "DT", "arules"))
+
 shiny::runApp("Dashboard")
 ```
 
-The exploratory script `analysis/coffee_sales_analysis.R` produces the static ggplot charts and the original Apriori run. Open `coffee-sales-dashboard.Rproj` first so paths resolve from the project root. It also needs `tidyverse`, `reshape2`, `corrplot`, `ggthemes`, `knitr`, `treemapify` and `arulesViz`.
+The first launch reads the Excel file and writes a cached `.rds` copy, so later launches start faster.
 
-## Deploy
+### Analysis script
 
-The `Dashboard/` folder is self-contained (it includes its own copy of the data), so it can be deployed to [shinyapps.io](https://www.shinyapps.io/) as is:
+`analysis/coffee_sales_analysis.R` contains the original exploratory analysis: static ggplot charts and the first Apriori run. Open `coffee-sales-dashboard.Rproj` before running it so that file paths resolve from the project root. It needs a few extra packages: `tidyverse`, `reshape2`, `corrplot`, `ggthemes`, `knitr`, `treemapify` and `arulesViz`.
+
+### Deployment
+
+The `Dashboard` folder contains everything the app needs, including the data, so it can be deployed to shinyapps.io directly:
 
 ```r
-install.packages("rsconnect")
-rsconnect::setAccountInfo(name = "<account>", token = "<token>", secret = "<secret>")
 rsconnect::deployApp("Dashboard", appName = "coffee-sales-dashboard")
 ```
 
 ## Project structure
 
 ```
-├── Dashboard/                  # Shiny app (deployable on its own)
-│   ├── global.R                # Packages, data loading and caching, helpers, theme
-│   ├── ui.R                    # Layout, sidebar filters, styling
-│   ├── server.R                # Reactive charts, KPIs, basket analysis
-│   ├── Coffee Shop Sales.xlsx  # Data
-│   └── www/                    # Static assets
-├── analysis/
-│   └── coffee_sales_analysis.R # Exploratory analysis: static charts + Apriori
-├── docs/screenshots/           # Images used in this README
-└── coffee-sales-dashboard.Rproj
+Dashboard/
+  global.R      data loading, cleaning and shared helpers
+  ui.R          layout and styling
+  server.R      reactive logic and charts
+  www/          static assets
+analysis/
+  coffee_sales_analysis.R
+docs/screenshots/
 ```
 
-## Data
+## Notes on the data
 
-Coffee Shop Sales sample dataset (Maven Analytics): 149,116 rows and 11 columns (transaction date and time, store, product hierarchy, quantity, unit price).
+- Each row in the source data has its own transaction ID, even when several items were bought together. For the basket analysis, items sold at the same store at the same second are treated as one basket. This is an approximation, and it produces about 29,000 baskets with two or more items.
+- Drink size comes from the `Lg`, `Rg` or `Sm` suffix on the product name. Products without a suffix, such as bakery items and packaged goods, are grouped as "Others".
+- Source: Maven Analytics coffee shop sales sample dataset.
